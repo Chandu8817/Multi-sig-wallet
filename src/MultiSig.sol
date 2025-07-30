@@ -232,7 +232,13 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param _txIndex The index of the transaction to confirm
     function confirmTransaction(
         uint256 _txIndex
-    ) external onlyOwner whenNotPaused transactionExists(_txIndex) notConfirmed(_txIndex) {
+    )
+        external
+        onlyOwner
+        whenNotPaused
+        transactionExists(_txIndex)
+        notConfirmed(_txIndex)
+    {
         confirmations[_txIndex][msg.sender] = true;
         transactions[_txIndex].confirmations++;
         emit TransactionConfirmed(_txIndex, msg.sender);
@@ -267,7 +273,13 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param _txIndex The index of the transaction to revoke
     function revokeConfirmation(
         uint256 _txIndex
-    ) external onlyOwner transactionExists(_txIndex) confirmed(_txIndex) whenNotPaused {
+    )
+        external
+        onlyOwner
+        transactionExists(_txIndex)
+        confirmed(_txIndex)
+        whenNotPaused
+    {
         confirmations[_txIndex][msg.sender] = false;
         transactions[_txIndex].confirmations--;
         emit TransactionRevoked(_txIndex, msg.sender);

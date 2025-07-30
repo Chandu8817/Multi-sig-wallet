@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
+
 import {MultiSig} from "../src/MultiSig.sol";
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
@@ -20,12 +21,14 @@ contract MultiSigTest is Test {
 
         multiSig = new MultiSig(owners, requiredConfirmations);
     }
+
     function testOwners() public view {
         assertEq(multiSig.getOwners().length, owners.length);
         for (uint256 i = 0; i < owners.length; i++) {
             assertEq(multiSig.getOwners()[i], owners[i]);
         }
     }
+
     function testDeploy() public view {
         assertEq(multiSig.getOwners().length, 3);
         assertEq(multiSig.requiredConfirmations(), requiredConfirmations);
@@ -43,6 +46,7 @@ contract MultiSigTest is Test {
         assertEq(multiSig.getOwners().length, 4);
         assertEq(multiSig.getOwners()[3], newOwner);
     }
+
     function testRemoveOwner() public {
         address owner1 = multiSig.getOwners()[1]; // assuming it was already added during setup
         address ownerToRemove = multiSig.getOwners()[2];
@@ -56,6 +60,7 @@ contract MultiSigTest is Test {
         assertEq(multiSig.getOwners()[0], owners[0]);
         assertEq(multiSig.getOwners()[1], owners[1]);
     }
+
     function testChangeRequiredConfirmations() public {
         address owner1 = multiSig.getOwners()[1]; // assuming it was already added during setup
         uint256 newRequiredConfirmations = 1;
@@ -67,6 +72,7 @@ contract MultiSigTest is Test {
         // Verify required confirmations changed
         assertEq(multiSig.requiredConfirmations(), newRequiredConfirmations);
     }
+
     function testcreateTransaction() public {
         address owner1 = multiSig.getOwners()[1]; // assuming it was already added during setup
         address to = address(0x5);
@@ -170,60 +176,62 @@ contract MultiSigTest is Test {
     }
 
     function testNonOwnerCannotCreateTx() public {
-    address nonOwner = address(0xdead);
-    vm.prank(nonOwner);
-    vm.expectRevert();
-    multiSig.createTransaction(address(0x1), 1 ether, "");
-}
-function testDoubleConfirmationFails() public {
-    address owner1 = multiSig.getOwners()[1];
-    vm.prank(owner1);
-    multiSig.createTransaction(address(0x5), 1 ether, "");
+        address nonOwner = address(0xdead);
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        multiSig.createTransaction(address(0x1), 1 ether, "");
+    }
 
-    vm.prank(owner1);
-    multiSig.confirmTransaction(0);
+    function testDoubleConfirmationFails() public {
+        address owner1 = multiSig.getOwners()[1];
+        vm.prank(owner1);
+        multiSig.createTransaction(address(0x5), 1 ether, "");
 
-    vm.prank(owner1);
-    vm.expectRevert(); // or expect specific error message
-    multiSig.confirmTransaction(0);
-}
-function testCannotExecuteTwice() public {
-    address owner1 = multiSig.getOwners()[1];
-    address to = address(0x5);
-    uint256 value = 1 ether;
-    vm.deal(address(multiSig), value);
+        vm.prank(owner1);
+        multiSig.confirmTransaction(0);
 
-    vm.startPrank(owner1);
-    multiSig.createTransaction(to, value, "");
-    multiSig.confirmTransaction(0);
-    vm.stopPrank();
+        vm.prank(owner1);
+        vm.expectRevert(); // or expect specific error message
+        multiSig.confirmTransaction(0);
+    }
 
-    vm.prank(multiSig.getOwners()[2]);
-    multiSig.confirmTransaction(0);
+    function testCannotExecuteTwice() public {
+        address owner1 = multiSig.getOwners()[1];
+        address to = address(0x5);
+        uint256 value = 1 ether;
+        vm.deal(address(multiSig), value);
 
-    vm.prank(owner1);
-    multiSig.executeTransaction(0);
+        vm.startPrank(owner1);
+        multiSig.createTransaction(to, value, "");
+        multiSig.confirmTransaction(0);
+        vm.stopPrank();
 
-    vm.prank(owner1);
-    vm.expectRevert(); // Already executed
-    multiSig.executeTransaction(0);
-}
-function testCannotExecuteWithoutEnoughConfirmations() public {
-    address owner1 = multiSig.getOwners()[1];
-    address to = address(0x5);
-    uint256 value = 1 ether;
-    vm.deal(address(multiSig), value);
+        vm.prank(multiSig.getOwners()[2]);
+        multiSig.confirmTransaction(0);
 
-    vm.prank(owner1);
-    multiSig.createTransaction(to, value, "");
+        vm.prank(owner1);
+        multiSig.executeTransaction(0);
 
-    vm.prank(owner1);
-    vm.expectRevert(); // Not enough confirmations
-    multiSig.executeTransaction(0);
-}
+        vm.prank(owner1);
+        vm.expectRevert(); // Already executed
+        multiSig.executeTransaction(0);
+    }
 
+    function testCannotExecuteWithoutEnoughConfirmations() public {
+        address owner1 = multiSig.getOwners()[1];
+        address to = address(0x5);
+        uint256 value = 1 ether;
+        vm.deal(address(multiSig), value);
 
-function testRemovedOwnerCannotSubmitOrConfirm() public {
+        vm.prank(owner1);
+        multiSig.createTransaction(to, value, "");
+
+        vm.prank(owner1);
+        vm.expectRevert(); // Not enough confirmations
+        multiSig.executeTransaction(0);
+    }
+
+    function testRemovedOwnerCannotSubmitOrConfirm() public {
         address removedOwner = owners[2];
         vm.prank(owners[0]);
         multiSig.removeOwner(removedOwner);
@@ -249,8 +257,6 @@ function testRemovedOwnerCannotSubmitOrConfirm() public {
         vm.expectRevert();
         multiSig.addOwner(newOwner);
     }
-
-   
 
     function testChangeRequiredConfirmationsBeyondOwnersShouldFail() public {
         vm.prank(owners[0]);
@@ -341,23 +347,22 @@ function testRemovedOwnerCannotSubmitOrConfirm() public {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertGt(logs.length, 0);
     }
-     function testRemoveAllOwnersShouldFail() public {
+
+    function testRemoveAllOwnersShouldFail() public {
         vm.prank(owners[0]);
         multiSig.removeOwner(owners[2]);
         vm.prank(owners[0]);
         multiSig.removeOwner(owners[1]);
 
         vm.prank(owners[0]);
-       
-         vm.expectRevert();
+
+        vm.expectRevert();
         multiSig.removeOwner(owners[0]); // only 1 owner left
     }
 }
-
 
 contract RevertingContract {
     receive() external payable {
         revert("I always revert");
     }
-
 }
