@@ -284,7 +284,7 @@ contract MultiSigTest is Test {
         multiSig.confirmTransaction(0);
 
         vm.prank(owners[0]);
-        vm.expectRevert("NOT_ENOUGH_CONFIRMATIONS()");
+        vm.expectRevert("NOT_ENOUGH_CONFIRMATIONS");
         multiSig.executeTransaction(0);
 
         (,,, bool executed,) = multiSig.getTransaction(0);
