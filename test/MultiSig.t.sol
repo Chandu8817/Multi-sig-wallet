@@ -85,13 +85,8 @@ contract MultiSigTest is Test {
 
         // Verify transaction submitted
         assertEq(multiSig.getTransactionCount(), 1);
-        (
-            address txTo,
-            uint256 txValue,
-            bytes memory txData,
-            bool executed,
-            uint256 _confirmations
-        ) = multiSig.getTransaction(0);
+        (address txTo, uint256 txValue, bytes memory txData, bool executed, uint256 _confirmations) =
+            multiSig.getTransaction(0);
         assertEq(txTo, to);
         assertEq(txValue, value);
         assertEq(txData, data);
@@ -114,13 +109,8 @@ contract MultiSigTest is Test {
         multiSig.confirmTransaction(0);
 
         // Verify transaction confirmed
-        (
-            address txTo,
-            uint256 txValue,
-            bytes memory txData,
-            bool executed,
-            uint256 _confirmations
-        ) = multiSig.getTransaction(0);
+        (address txTo, uint256 txValue, bytes memory txData, bool executed, uint256 _confirmations) =
+            multiSig.getTransaction(0);
         assertEq(_confirmations, 1);
         assertEq(txTo, to);
         assertEq(txValue, value);
@@ -155,20 +145,10 @@ contract MultiSigTest is Test {
         // // Execute the transaction
         vm.prank(owner1);
         multiSig.executeTransaction(0);
-        console.log(
-            "Transaction executed successfully",
-            balanceBefore,
-            to.balance
-        );
+        console.log("Transaction executed successfully", balanceBefore, to.balance);
 
         // Verify transaction executed
-        (
-            address txTo,
-            uint256 txValue,
-            ,
-            bool executed,
-            uint256 _confirmations
-        ) = multiSig.getTransaction(0);
+        (address txTo, uint256 txValue,, bool executed, uint256 _confirmations) = multiSig.getTransaction(0);
         assertTrue(executed);
         assertEq(_confirmations, 3); // Both owners confirmed
         assertEq(txTo, to);
@@ -274,7 +254,7 @@ contract MultiSigTest is Test {
         vm.prank(owners[0]);
         multiSig.removeOwner(owners[2]);
 
-        (, , , , uint256 confirmations) = multiSig.getTransaction(0);
+        (,,,, uint256 confirmations) = multiSig.getTransaction(0);
         assertEq(confirmations, 0); // confirmation still counted
     }
 
@@ -289,7 +269,7 @@ contract MultiSigTest is Test {
 
     function testReceiveEtherWithNoData() public {
         vm.deal(address(this), 1 ether);
-        (bool sent, ) = payable(address(multiSig)).call{value: 1 ether}("");
+        (bool sent,) = payable(address(multiSig)).call{value: 1 ether}("");
         require(sent, "Send failed");
         assertEq(address(multiSig).balance, 1 ether);
     }
@@ -307,7 +287,7 @@ contract MultiSigTest is Test {
         vm.expectRevert("NOT_ENOUGH_CONFIRMATIONS()");
         multiSig.executeTransaction(0);
 
-        (, , , bool executed, ) = multiSig.getTransaction(0);
+        (,,, bool executed,) = multiSig.getTransaction(0);
         assertFalse(executed);
     }
 
@@ -320,8 +300,8 @@ contract MultiSigTest is Test {
         vm.prank(owners[1]);
         multiSig.confirmTransaction(1);
 
-        (, , , , uint256 confirmations0) = multiSig.getTransaction(0);
-        (, , , , uint256 confirmations1) = multiSig.getTransaction(1);
+        (,,,, uint256 confirmations0) = multiSig.getTransaction(0);
+        (,,,, uint256 confirmations1) = multiSig.getTransaction(1);
 
         assertEq(confirmations0, 0);
         assertEq(confirmations1, 1);
@@ -335,7 +315,7 @@ contract MultiSigTest is Test {
         vm.prank(owners[2]);
         multiSig.confirmTransaction(0);
 
-        (, , , , uint256 confirmations) = multiSig.getTransaction(0);
+        (,,,, uint256 confirmations) = multiSig.getTransaction(0);
         assertEq(confirmations, 2);
     }
 

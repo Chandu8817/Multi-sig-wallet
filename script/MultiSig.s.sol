@@ -11,9 +11,7 @@ contract MultiSigScript is Script {
 
         address[] memory owners = new address[](numOwners);
         for (uint256 i = 0; i < numOwners; i++) {
-            string memory key = string(
-                abi.encodePacked("OWNER_", vm.toString(i))
-            );
+            string memory key = string(abi.encodePacked("OWNER_", vm.toString(i)));
             owners[i] = vm.envAddress(key);
         }
 

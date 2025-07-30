@@ -15,29 +15,17 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param to The destination address of the transaction
     /// @param value The amount of Wei to send
     /// @param data The calldata payload
-    event TransactionCreated(
-        uint256 indexed txIndex,
-        address indexed creator,
-        address to,
-        uint256 value,
-        bytes data
-    );
+    event TransactionCreated(uint256 indexed txIndex, address indexed creator, address to, uint256 value, bytes data);
 
     /// @notice Emitted when a transaction is confirmed by an owner
     /// @param txIndex The index of the transaction
     /// @param confirmer The owner who confirmed the transaction
-    event TransactionConfirmed(
-        uint256 indexed txIndex,
-        address indexed confirmer
-    );
+    event TransactionConfirmed(uint256 indexed txIndex, address indexed confirmer);
 
     /// @notice Emitted when a transaction is executed
     /// @param txIndex The index of the transaction
     /// @param executor The owner who executed the transaction
-    event TransactionExecuted(
-        uint256 indexed txIndex,
-        address indexed executor
-    );
+    event TransactionExecuted(uint256 indexed txIndex, address indexed executor);
 
     /// @notice Emitted when a confirmation is revoked
     /// @param txIndex The index of the transaction
@@ -112,20 +100,14 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @notice Checks the transaction has not been executed yet
     /// @param _txIndex The index of the transaction
     modifier notExecuted(uint256 _txIndex) {
-        require(
-            !transactions[_txIndex].executed,
-            "TRANSACTION_ALREADY_EXECUTED"
-        );
+        require(!transactions[_txIndex].executed, "TRANSACTION_ALREADY_EXECUTED");
         _;
     }
 
     /// @notice Checks the transaction has enough confirmations
     /// @param _txIndex The index of the transaction
     modifier enoughConfirmations(uint256 _txIndex) {
-        require(
-            transactions[_txIndex].confirmations >= requiredConfirmations,
-            "NOT_ENOUGH_CONFIRMATIONS"
-        );
+        require(transactions[_txIndex].confirmations >= requiredConfirmations, "NOT_ENOUGH_CONFIRMATIONS");
         _;
     }
 
@@ -135,8 +117,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
     constructor(address[] memory _owners, uint256 _requiredConfirmations) {
         require(_owners.length > 0, "Owners required");
         require(
-            _requiredConfirmations > 0 &&
-                _requiredConfirmations <= _owners.length,
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
             "Invalid number of required confirmations"
         );
 
@@ -191,12 +172,9 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @notice Changes the required confirmation threshold
     /// @dev New threshold must be >0 and <= number of owners
     /// @param _newRequiredConfirmations The new confirmation count
-    function changeRequiredConfirmations(
-        uint256 _newRequiredConfirmations
-    ) external onlyOwner {
+    function changeRequiredConfirmations(uint256 _newRequiredConfirmations) external onlyOwner {
         require(
-            _newRequiredConfirmations > 0 &&
-                _newRequiredConfirmations <= owners.length,
+            _newRequiredConfirmations > 0 && _newRequiredConfirmations <= owners.length,
             "Invalid number of required confirmations"
         );
         requiredConfirmations = _newRequiredConfirmations;
@@ -208,31 +186,17 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param _to Destination address for the transaction
     /// @param _value Amount of Wei to send
     /// @param _data Calldata payload
-    function createTransaction(
-        address _to,
-        uint256 _value,
-        bytes calldata _data
-    ) external onlyOwner whenNotPaused {
+    function createTransaction(address _to, uint256 _value, bytes calldata _data) external onlyOwner whenNotPaused {
         require(_to != address(0), "ZERO_ADDRESS");
 
-        transactions.push(
-            Transaction({
-                to: _to,
-                value: _value,
-                data: _data,
-                executed: false,
-                confirmations: 0
-            })
-        );
+        transactions.push(Transaction({to: _to, value: _value, data: _data, executed: false, confirmations: 0}));
         uint256 txIndex = transactions.length - 1;
         emit TransactionCreated(txIndex, msg.sender, _to, _value, _data);
     }
 
     /// @notice Confirms a pending transaction
     /// @param _txIndex The index of the transaction to confirm
-    function confirmTransaction(
-        uint256 _txIndex
-    )
+    function confirmTransaction(uint256 _txIndex)
         external
         onlyOwner
         whenNotPaused
@@ -246,9 +210,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
 
     /// @notice Executes a transaction that has enough confirmations
     /// @param _txIndex The index of the transaction to execute
-    function executeTransaction(
-        uint256 _txIndex
-    )
+    function executeTransaction(uint256 _txIndex)
         external
         payable
         onlyOwner
@@ -260,9 +222,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
     {
         Transaction storage txToExecute = transactions[_txIndex];
 
-        (bool success, ) = txToExecute.to.call{value: txToExecute.value}(
-            txToExecute.data
-        );
+        (bool success,) = txToExecute.to.call{value: txToExecute.value}(txToExecute.data);
         require(success, "EXECUTION_FAILED");
         txToExecute.executed = true;
 
@@ -271,9 +231,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
 
     /// @notice Revokes a confirmation for a transaction
     /// @param _txIndex The index of the transaction to revoke
-    function revokeConfirmation(
-        uint256 _txIndex
-    )
+    function revokeConfirmation(uint256 _txIndex)
         external
         onlyOwner
         transactionExists(_txIndex)
@@ -298,28 +256,14 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @return data The calldata
     /// @return executed Boolean execution status
     /// @return _confirmations Number of confirmations received
-    function getTransaction(
-        uint256 _txIndex
-    )
+    function getTransaction(uint256 _txIndex)
         external
         view
         transactionExists(_txIndex)
-        returns (
-            address to,
-            uint256 value,
-            bytes memory data,
-            bool executed,
-            uint256 _confirmations
-        )
+        returns (address to, uint256 value, bytes memory data, bool executed, uint256 _confirmations)
     {
         Transaction memory transaction = transactions[_txIndex];
-        return (
-            transaction.to,
-            transaction.value,
-            transaction.data,
-            transaction.executed,
-            transaction.confirmations
-        );
+        return (transaction.to, transaction.value, transaction.data, transaction.executed, transaction.confirmations);
     }
 
     /// @notice Returns list of owner addresses
