@@ -3,18 +3,37 @@ pragma solidity ^0.8.27;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {console} from "forge-std/Script.sol";
 
 /// @title Multi-signature Wallet
 /// @author
 /// @notice This contract allows multiple owners to collectively manage and execute transactions
 /// @dev Implements a multi-signature mechanism with deposit, owner management, and transaction lifecycle
 contract MultiSig is ReentrancyGuard, Pausable {
+    using ECDSA for bytes32;
+
+    error INVALID_OWNER();
+    error NOT_OWNER();
+    error TRANSACTION_NOT_EXIST();
+    error ALREADY_CONFIRMED();
+    error NOT_CONFIRMED();
+    error TRANSACTION_ALREADY_EXECUTED();
+    error NOT_ENOUGH_CONFIRMATIONS();
+    error ZERO_ADDRESS();
+    error DUPLICATE_OWNER();
+    error SIGNATURES_NOT_SORTED();
+    error EXECUTION_FAILED();
+    error NOT_ENOUGH_SIGS();
+    error OWNERS_REQUIRED();
+    error INVALID_NUMBER_OF_REQUIRED_CONFIRMATIONS();
     /// @notice Emitted when a transaction is created
     /// @param txIndex The index of the transaction
     /// @param creator The owner who created the transaction
     /// @param to The destination address of the transaction
     /// @param value The amount of Wei to send
     /// @param data The calldata payload
+
     event TransactionCreated(uint256 indexed txIndex, address indexed creator, address to, uint256 value, bytes data);
 
     /// @notice Emitted when a transaction is confirmed by an owner
@@ -50,6 +69,14 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param balance The new contract balance
     event Deposit(address indexed sender, uint256 amount, uint256 balance);
 
+    /// @notice Emitted when a transaction is executed with signatures
+    /// @param to The destination address of the transaction
+    /// @param value The amount of Wei sent
+    /// @param data The calldata payload
+    /// @param nonce A unique number for the transaction (e.g. txIndex)
+    /// @param executor The address of the executor
+    event TransactionExecutedWithSignatures(address to, uint256 value, bytes data, uint256 nonce, address executor);
+
     /// @notice Structure to store transaction details
     struct Transaction {
         address to;
@@ -63,6 +90,12 @@ contract MultiSig is ReentrancyGuard, Pausable {
     address[] public owners;
     /// @notice Mapping to check owner status
     mapping(address => bool) public isOwner;
+
+    /// @notice Mapping to track used nonces (or transaction indices)
+    /// @dev Used to prevent replay attacks
+    // e.g. mapping(uint256 => bool) public usedNonces;
+    mapping(uint256 => bool) public executedNonces;
+
     /// @notice List of all transactions
     Transaction[] public transactions;
     /// @notice Mapping of confirmations: txIndex => owner => confirmed
@@ -72,42 +105,42 @@ contract MultiSig is ReentrancyGuard, Pausable {
 
     /// @notice Ensures the caller is one of the owners
     modifier onlyOwner() {
-        require(isOwner[msg.sender], "NOT_OWNER");
+        require(isOwner[msg.sender], INVALID_OWNER());
         _;
     }
 
     /// @notice Checks that the transaction exists
     /// @param _txIndex The index of the transaction
     modifier transactionExists(uint256 _txIndex) {
-        require(_txIndex < transactions.length, "TRANSACTION_NOT_EXIST");
+        require(_txIndex < transactions.length, TRANSACTION_NOT_EXIST());
         _;
     }
 
     /// @notice Checks the caller has not confirmed the transaction
     /// @param _txIndex The index of the transaction
     modifier notConfirmed(uint256 _txIndex) {
-        require(!confirmations[_txIndex][msg.sender], "ALREADY_CONFIRMED");
+        require(!confirmations[_txIndex][msg.sender], ALREADY_CONFIRMED());
         _;
     }
 
     /// @notice Checks the caller has confirmed the transaction
     /// @param _txIndex The index of the transaction
     modifier confirmed(uint256 _txIndex) {
-        require(confirmations[_txIndex][msg.sender], "NOT_CONFIRMED");
+        require(confirmations[_txIndex][msg.sender], NOT_CONFIRMED());
         _;
     }
 
     /// @notice Checks the transaction has not been executed yet
     /// @param _txIndex The index of the transaction
     modifier notExecuted(uint256 _txIndex) {
-        require(!transactions[_txIndex].executed, "TRANSACTION_ALREADY_EXECUTED");
+        require(!transactions[_txIndex].executed, TRANSACTION_ALREADY_EXECUTED());
         _;
     }
 
     /// @notice Checks the transaction has enough confirmations
     /// @param _txIndex The index of the transaction
     modifier enoughConfirmations(uint256 _txIndex) {
-        require(transactions[_txIndex].confirmations >= requiredConfirmations, "NOT_ENOUGH_CONFIRMATIONS");
+        require(transactions[_txIndex].confirmations >= requiredConfirmations, NOT_ENOUGH_CONFIRMATIONS());
         _;
     }
 
@@ -115,16 +148,16 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param _owners List of initial owner addresses
     /// @param _requiredConfirmations Number of confirmations required to execute
     constructor(address[] memory _owners, uint256 _requiredConfirmations) {
-        require(_owners.length > 0, "Owners required");
+        require(_owners.length > 0, OWNERS_REQUIRED());
         require(
             _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
-            "Invalid number of required confirmations"
+            INVALID_NUMBER_OF_REQUIRED_CONFIRMATIONS()
         );
 
         for (uint256 i = 0; i < _owners.length; i++) {
             address owner = _owners[i];
-            require(owner != address(0), "ZERO_ADDRESS");
-            require(!isOwner[owner], "DUPLICATE_OWNER");
+            require(owner != address(0), ZERO_ADDRESS());
+            require(!isOwner[owner], DUPLICATE_OWNER());
             isOwner[owner] = true;
             owners.push(owner);
         }
@@ -135,8 +168,8 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @dev New owner must be non-zero and not already an owner
     /// @param _newOwner The address to add as owner
     function addOwner(address _newOwner) external onlyOwner {
-        require(_newOwner != address(0), "ZERO_ADDRESS");
-        require(!isOwner[_newOwner], "DUPLICATE_OWNER");
+        require(_newOwner != address(0), ZERO_ADDRESS());
+        require(!isOwner[_newOwner], DUPLICATE_OWNER());
 
         isOwner[_newOwner] = true;
         owners.push(_newOwner);
@@ -147,7 +180,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @dev Cannot remove last owner; cleans up pending confirmations
     /// @param _owner The address of the owner to remove
     function removeOwner(address _owner) external onlyOwner {
-        require(isOwner[_owner], "NOT_OWNER");
+        require(isOwner[_owner], NOT_OWNER());
         require(owners.length > 1, "Cannot remove last owner");
 
         // Remove owner flag and from array
@@ -175,7 +208,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
     function changeRequiredConfirmations(uint256 _newRequiredConfirmations) external onlyOwner {
         require(
             _newRequiredConfirmations > 0 && _newRequiredConfirmations <= owners.length,
-            "Invalid number of required confirmations"
+            INVALID_NUMBER_OF_REQUIRED_CONFIRMATIONS()
         );
         requiredConfirmations = _newRequiredConfirmations;
         emit RequiredConfirmationsChanged(_newRequiredConfirmations);
@@ -187,7 +220,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
     /// @param _value Amount of Wei to send
     /// @param _data Calldata payload
     function createTransaction(address _to, uint256 _value, bytes calldata _data) external onlyOwner whenNotPaused {
-        require(_to != address(0), "ZERO_ADDRESS");
+        require(_to != address(0), ZERO_ADDRESS());
 
         transactions.push(Transaction({to: _to, value: _value, data: _data, executed: false, confirmations: 0}));
         uint256 txIndex = transactions.length - 1;
@@ -223,7 +256,7 @@ contract MultiSig is ReentrancyGuard, Pausable {
         Transaction storage txToExecute = transactions[_txIndex];
 
         (bool success,) = txToExecute.to.call{value: txToExecute.value}(txToExecute.data);
-        require(success, "EXECUTION_FAILED");
+        require(success, EXECUTION_FAILED());
         txToExecute.executed = true;
 
         emit TransactionExecuted(_txIndex, msg.sender);
@@ -241,6 +274,47 @@ contract MultiSig is ReentrancyGuard, Pausable {
         confirmations[_txIndex][msg.sender] = false;
         transactions[_txIndex].confirmations--;
         emit TransactionRevoked(_txIndex, msg.sender);
+    }
+
+    /// @notice Execute a transaction using owner signatures instead of on-chain confirms
+    /// @param to       Destination address
+    /// @param value    Wei to send
+    /// @param data     Calldata payload
+    /// @param nonce    A unique number per tx (e.g. txIndex or a monotonically increasing counter)
+    /// @param signatures  Array of owner signatures (65 bytes each: r(32)‖s(32)‖v(1))
+    function executeWithSignatures(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint256 nonce,
+        bytes[] calldata signatures
+    ) external nonReentrant {
+        bytes32 hash = keccak256(abi.encodePacked(address(this), to, value, data, nonce));
+
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        uint256 validSignatures;
+        address lastSigner = address(0);
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            address signer = ethSigned.recover(signatures[i]);
+            console.log("Signature %d: %s", i, signer);
+            require(isOwner[signer], INVALID_OWNER());
+            // prevent duplicates by enforcing ascending order
+            require(signer > lastSigner, SIGNATURES_NOT_SORTED());
+            lastSigner = signer;
+            validSignatures++;
+        }
+
+        require(validSignatures >= requiredConfirmations, NOT_ENOUGH_SIGS());
+
+        // 3) Mark nonce (or txIndex) used so it can’t replay
+        //    e.g. usedNonces[nonce] = true; (you’ll need that mapping)
+
+        // 4) Execute
+        (bool success,) = to.call{value: value}(data);
+        require(success, EXECUTION_FAILED());
+
+        emit TransactionExecutedWithSignatures(to, value, data, nonce, msg.sender);
     }
 
     /// @notice Returns the total number of transactions
